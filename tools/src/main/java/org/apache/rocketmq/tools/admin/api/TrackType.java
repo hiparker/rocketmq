@@ -17,9 +17,13 @@
 
 package org.apache.rocketmq.tools.admin.api;
 
+/**
+ * 跟踪类别
+ */
 public enum TrackType {
     CONSUMED,
     CONSUMED_BUT_FILTERED,
+    // 拉
     PULL,
     NOT_CONSUME_YET,
     NOT_ONLINE,

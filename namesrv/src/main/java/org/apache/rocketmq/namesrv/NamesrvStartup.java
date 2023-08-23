@@ -16,12 +16,6 @@
  */
 package org.apache.rocketmq.namesrv;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Properties;
-import java.util.concurrent.Callable;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
@@ -33,33 +27,55 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.namesrv.NamesrvConfig;
 import org.apache.rocketmq.controller.ControllerManager;
 import org.apache.rocketmq.logging.org.slf4j.Logger;
+import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.netty.NettyServerConfig;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
-import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.srvutil.ServerUtil;
 import org.apache.rocketmq.srvutil.ShutdownHookThread;
 
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Properties;
+import java.util.concurrent.Callable;
+
+/**
+ * Namesrv 启动类
+ */
 public class NamesrvStartup {
 
     private final static Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final static Logger logConsole = LoggerFactory.getLogger(LoggerName.NAMESRV_CONSOLE_LOGGER_NAME);
+    // 系统配置
     private static Properties properties = null;
+    // Namesrv 配置
     private static NamesrvConfig namesrvConfig = null;
+    // Netty 配置（初步推断 内部使用Netty通信）
     private static NettyServerConfig nettyServerConfig = null;
     private static NettyClientConfig nettyClientConfig = null;
+    // 不太确定作用
     private static ControllerConfig controllerConfig = null;
 
     public static void main(String[] args) {
+        // 大多数开源作品中 init main 都是 init0 main0的迷幻命名
         main0(args);
+        // 看样子像是控制器初始化
         controllerManagerMain();
     }
 
     public static NamesrvController main0(String[] args) {
         try {
+            // 扫码启动参数
             parseCommandlineAndConfigFile(args);
+            // 创建 并且 启动 NamesrvController 控制器
             NamesrvController controller = createAndStartNamesrvController();
             return controller;
+
+            // TODO 实际这里可以优化为 目前还没有看到 使用 main0的返回值
+            // TODO 甚至main0 的 返回值都可以是 void
+            // return createAndStartNamesrvController();
         } catch (Throwable e) {
             e.printStackTrace();
             System.exit(-1);
@@ -81,6 +97,7 @@ public class NamesrvStartup {
     }
 
     public static void parseCommandlineAndConfigFile(String[] args) throws Exception {
+        // 设置RocketMQ版本号
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
 
         Options options = ServerUtil.buildCommandlineOptions(new Options());
@@ -93,7 +110,10 @@ public class NamesrvStartup {
         namesrvConfig = new NamesrvConfig();
         nettyServerConfig = new NettyServerConfig();
         nettyClientConfig = new NettyClientConfig();
+        // TODO 默认指定9876 待后续观察 有没有可变的地方
         nettyServerConfig.setListenPort(9876);
+
+        // 如果包含c 则说明有独立的配置文件 需要读这个文件的配置
         if (commandLine.hasOption('c')) {
             String file = commandLine.getOptionValue('c');
             if (file != null) {
@@ -135,41 +155,62 @@ public class NamesrvStartup {
     }
 
     public static NamesrvController createAndStartNamesrvController() throws Exception {
-
+        // 创建并启动 NamesrvController
         NamesrvController controller = createNamesrvController();
         start(controller);
+
+        // 创建NettyServer 用户保持通信
         NettyServerConfig serverConfig = controller.getNettyServerConfig();
-        String tip = String.format("The Name Server boot success. serializeType=%s, address %s:%d", RemotingCommand.getSerializeTypeConfigInThisServer(), serverConfig.getBindAddress(), serverConfig.getListenPort());
+        String tip = String.format("The Name Server boot success. serializeType=%s, address %s:%d",
+                // 序列化类型
+                RemotingCommand.getSerializeTypeConfigInThisServer(),
+                serverConfig.getBindAddress(),
+                serverConfig.getListenPort());
         log.info(tip);
         System.out.printf("%s%n", tip);
         return controller;
     }
 
     public static NamesrvController createNamesrvController() {
-
-        final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig, nettyClientConfig);
+        // TODO 1. 需要查看一下 NamesrvController 具体的创建过程和逻辑
+        final NamesrvController controller =
+                new NamesrvController(
+                        namesrvConfig,
+                        nettyServerConfig,
+                        nettyClientConfig);
         // remember all configs to prevent discard
         controller.getConfiguration().registerConfig(properties);
         return controller;
     }
 
+    /**
+     * 启动类
+     * @param controller controller
+     * @return
+     * @throws Exception
+     */
     public static NamesrvController start(final NamesrvController controller) throws Exception {
 
         if (null == controller) {
             throw new IllegalArgumentException("NamesrvController is null");
         }
 
+        // 判断 controller 是否完成初始化动作
         boolean initResult = controller.initialize();
         if (!initResult) {
+            // TODO 非初始化 执行 shutdown
             controller.shutdown();
             System.exit(-3);
         }
 
+        // shutdown 钩子函数
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, (Callable<Void>) () -> {
+            // 当其他流程触发shutdown时 钩子函数 执行 controller 的销毁动作
             controller.shutdown();
             return null;
         }));
 
+        // 启动
         controller.start();
 
         return controller;

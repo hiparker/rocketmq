@@ -17,9 +17,16 @@
 
 package org.apache.rocketmq.tools.admin.api;
 
+/**
+ * 消息跟踪
+ */
 public class MessageTrack {
+
+    // 消费者队列
     private String consumerGroup;
+    // 跟踪类型
     private TrackType trackType;
+    // 异常描述 或者 信息
     private String exceptionDesc;
 
     public String getConsumerGroup() {

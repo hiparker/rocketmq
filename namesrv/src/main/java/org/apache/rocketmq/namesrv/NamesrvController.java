@@ -16,15 +16,6 @@
  */
 package org.apache.rocketmq.namesrv;
 
-import java.util.Collections;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.rocketmq.common.ThreadFactoryImpl;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -44,31 +35,34 @@ import org.apache.rocketmq.remoting.Configuration;
 import org.apache.rocketmq.remoting.RemotingClient;
 import org.apache.rocketmq.remoting.RemotingServer;
 import org.apache.rocketmq.remoting.common.TlsMode;
-import org.apache.rocketmq.remoting.netty.NettyClientConfig;
-import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
-import org.apache.rocketmq.remoting.netty.NettyRemotingServer;
-import org.apache.rocketmq.remoting.netty.NettyServerConfig;
-import org.apache.rocketmq.remoting.netty.RequestTask;
-import org.apache.rocketmq.remoting.netty.TlsSystemConfig;
+import org.apache.rocketmq.remoting.netty.*;
 import org.apache.rocketmq.remoting.protocol.RequestCode;
 import org.apache.rocketmq.srvutil.FileWatchService;
 
+import java.util.Collections;
+import java.util.concurrent.*;
+
+/**
+ * NamesrvController 控制器
+ */
 public class NamesrvController {
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private static final Logger WATER_MARK_LOG = LoggerFactory.getLogger(LoggerName.NAMESRV_WATER_MARK_LOGGER_NAME);
 
     private final NamesrvConfig namesrvConfig;
-
     private final NettyServerConfig nettyServerConfig;
     private final NettyClientConfig nettyClientConfig;
 
+    /** TODO 不确定作用的定时线程池 */
+    /** NSScheduledThread */
     private final ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(1,
             new BasicThreadFactory.Builder().namingPattern("NSScheduledThread").daemon(true).build());
-
+    /** NSScanScheduledThread */
     private final ScheduledExecutorService scanExecutorService = new ScheduledThreadPoolExecutor(1,
             new BasicThreadFactory.Builder().namingPattern("NSScanScheduledThread").daemon(true).build());
 
     private final KVConfigManager kvConfigManager;
+    /** 路由控制器 */
     private final RouteInfoManager routeInfoManager;
 
     private RemotingClient remotingClient;
@@ -76,9 +70,11 @@ public class NamesrvController {
 
     private final BrokerHousekeepingService brokerHousekeepingService;
 
+    /** TODO 不确定干啥的线程池 */
     private ExecutorService defaultExecutor;
     private ExecutorService clientRequestExecutor;
 
+    /** TODO 不确定干啥的阻塞队列 */
     private BlockingQueue<Runnable> defaultThreadPoolQueue;
     private BlockingQueue<Runnable> clientRequestThreadPoolQueue;
 
@@ -94,19 +90,30 @@ public class NamesrvController {
         this.nettyServerConfig = nettyServerConfig;
         this.nettyClientConfig = nettyClientConfig;
         this.kvConfigManager = new KVConfigManager(this);
+
+        // TODO broker 端的什么东西
         this.brokerHousekeepingService = new BrokerHousekeepingService(this);
+        // 路由控制器
         this.routeInfoManager = new RouteInfoManager(namesrvConfig, this);
         this.configuration = new Configuration(LOGGER, this.namesrvConfig, this.nettyServerConfig);
+        // 存储路径
         this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
     }
 
     public boolean initialize() {
+        // 加载配置
         loadConfig();
+        // TODO 初始化 XXX
         initiateNetworkComponents();
+        // TODO 初始化线程池
         initiateThreadExecutors();
+        // TODO 注册执行器
         registerProcessor();
+        // TODO 启动定时任务
         startScheduleService();
+        // 初始化SSL 服务认证相关
         initiateSslContext();
+        // 初始化 RPC hook
         initiateRpcHooks();
         return true;
     }

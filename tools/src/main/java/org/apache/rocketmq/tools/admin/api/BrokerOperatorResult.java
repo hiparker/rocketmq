@@ -18,10 +18,15 @@ package org.apache.rocketmq.tools.admin.api;
 
 import java.util.List;
 
+/**
+ * Broker 操作返回
+ */
 public class BrokerOperatorResult {
 
+    /** 成功队列 */
     private List<String> successList;
 
+    /** 失败队列 */
     private List<String> failureList;
 
     public List<String> getSuccessList() {
